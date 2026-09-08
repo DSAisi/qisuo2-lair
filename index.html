@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lair 配置器 v0.4 · 家园页装修台</title>
+<style>
+/* ============ Lair 配置器 v0.1：左预览(手机)右控制，导出配置 JSON ============ */
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#0f1115;color:#e8e6e1;min-height:100vh;display:flex}
+/* ---- 左：预览 ---- */
+.preview{flex:1;display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 90% at 50% 0%,#171b23,#0f1115);padding:24px;position:sticky;top:0;height:100vh}
+.phone{width:min(360px,88vw);height:min(740px,92vh);border-radius:36px;overflow:hidden;position:relative;
+  background:var(--bg,#f5ecdf);box-shadow:0 24px 70px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.08);transition:background .4s}
+/* 背景层（图/纯色/渐变，玻璃面板透出它） */
+.bglayer{position:absolute;inset:0}
+.bglayer .color{position:absolute;inset:0;background:var(--bgc,#f5ecdf)}
+.bglayer .img{position:absolute;inset:0;background-size:cover;background-position:center;opacity:var(--bgimg-op,1)}
+/* 玻璃面板通用 */
+.glass{position:absolute;border-radius:var(--r,18px);
+  background:var(--glassbg,rgba(255,255,255,.45));
+  -webkit-backdrop-filter:blur(var(--blur,18px));backdrop-filter:blur(var(--blur,18px));
+  border:1px solid rgba(255,255,255,.35);
+  box-shadow:0 8px 26px rgba(0,0,0,.10),inset 0 1px 0 rgba(255,255,255,.45);
+  padding:var(--pad,10px) 12px;font-family:var(--font,"PingFang SC",sans-serif);color:var(--ink,#33302a);overflow:hidden;transition:all .3s}
+/* ---- Lair 布局（按她图纸） ---- */
+.g-top{top:7%;left:8%;right:8%;text-align:center;padding:12px 8px}
+.g-top .pair{display:flex;align-items:center;justify-content:center;gap:14px}
+.g-top .who{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;font-size:15px;border:1px solid rgba(255,255,255,.5);overflow:hidden;background-size:cover;background-position:center}
+.g-top .heart{font-size:22px;opacity:.85}
+.g-top .since{margin-top:7px;font-size:11px;letter-spacing:.08em;opacity:.8}
+.g-mood{top:24%;left:8%;width:44%;height:26%}
+.g-today{top:24%;right:8%;width:40%;height:26%}
+.g-heart{top:54%;left:8%;right:8%;height:24%}
+.row2{display:flex;flex-direction:column;height:100%}
+.card-t{font-size:12px;font-weight:600;margin-bottom:6px;letter-spacing:.06em}
+.mood-circles{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;flex:1;align-content:center}
+.mood-circles i{height:30px;border-radius:10px;border:1.5px solid rgba(0,0,0,.16);background:rgba(255,255,255,.3);cursor:pointer;transition:background .2s;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:12px;line-height:1.2;overflow:hidden}
+.card-foot{font-size:9px;opacity:.6;margin-top:5px;letter-spacing:.04em}
+.today-nums{display:flex;flex-direction:column;gap:7px;justify-content:center;flex:1}
+.today-nums div{display:flex;align-items:center;gap:8px}
+.today-nums .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.wave{position:relative;flex:1;min-height:34px}
+.wave svg{position:absolute;inset:0;width:100%;height:100%}
+.metrics{display:flex;justify-content:space-around;font-size:9.5px;opacity:.75;margin-top:4px}
+/* ---- 右：控制 ---- */
+.controls{width:min(340px,96vw);padding:26px 20px;overflow-y:auto;max-height:100vh;border-left:1px solid rgba(255,255,255,.07)}
+.controls h2{font-size:15px;letter-spacing:.1em;margin-bottom:4px}
+.controls .sub{font-size:11px;color:#8b919c;margin-bottom:16px}
+.sec{margin-bottom:18px}
+.sec .t{font-size:11px;color:#9aa1ad;letter-spacing:.14em;margin-bottom:8px}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.sw{width:34px;height:34px;border-radius:10px;cursor:pointer;border:2px solid transparent;transition:transform .15s}
+.sw.on{border-color:#fff;transform:scale(1.1)}
+.row{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;font-size:12.5px}
+.row input[type=range]{width:130px}
+.row select{background:#1d2129;color:#e8e6e1;border:1px solid #333a45;border-radius:8px;padding:4px 8px;font-size:12px}
+.btn{width:100%;padding:11px;border:none;border-radius:12px;background:linear-gradient(135deg,#f0c987,#e8a83e);color:#4a3414;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:.06em}
+.btn:active{transform:scale(.98)}
+.hide{display:none!important}
+.chk{display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:6px}
+.chk input{accent-color:#e8a83e}
+.out{width:100%;height:90px;margin-top:10px;background:#161a21;border:1px solid #2a303b;border-radius:10px;color:#a9c9a0;font-size:10.5px;padding:8px;font-family:monospace;white-space:pre-wrap;overflow:auto}
+
+/* ===== 手机适配（窄屏竖排） ===== */
+@media (max-width:760px){
+  body{flex-direction:column}
+  .preview{flex:none;height:auto;padding:18px 12px 6px;position:static}
+  .phone{width:min(300px,70vw);height:440px;border-radius:26px}
+  .controls{width:100%;max-height:none;border-left:none;border-top:1px solid rgba(255,255,255,.07);padding:18px 16px 30px}
+  .g-top{padding:8px 6px}
+  .g-top .who{width:34px;height:34px;font-size:13px}
+  .g-top .since{font-size:9.5px}
+  .mood-circles i{height:24px;font-size:10px}
+  .card-t{font-size:10.5px}
+  .card-foot{font-size:8px}
+  .metrics{font-size:8px}
+}
+</style>
+</head>
+<body>
+<!-- 左预览 -->
+<div class="preview">
+  <div class="phone" id="phone">
+    <div class="bglayer">
+      <div class="color" id="bgColor"></div>
+      <div class="img" id="bgImg"></div>
+    </div>
+    <!-- 顶部联结卡 -->
+    <div class="glass g-top" id="cTop">
+      <div class="pair"><div class="who" id="whoMe">我</div><div class="heart">♡</div><div class="who" id="whoD">机</div></div>
+      <div class="since" id="sinceTxt">since 2026.8.8 · 我们一起走过 <b id="daysNum">—</b> 天</div>
+    </div>
+    <!-- 今日心情 -->
+    <div class="glass g-mood" id="cMood">
+      <div class="card-t">今日心情</div>
+      <div class="mood-circles" id="moodCircles"></div>
+      <div class="card-foot">点击可跳转聊天并回复</div>
+    </div>
+    <!-- 今天概览 -->
+    <div class="glass g-today" id="cToday">
+      <div class="card-t">今天 <span id="todayDate"></span></div>
+      <div class="today-nums">
+        <div><span class="dot" style="background:#e8a83e"></span><span>聊天 <b>—</b> 条</span></div>
+        <div><span class="dot" style="background:#7fb0e0"></span><span>记录 <b>—</b> 条</span></div>
+      </div>
+    </div>
+    <!-- 他此刻的心里 -->
+    <div class="glass g-heart" id="cHeart">
+      <div class="card-t">他此刻的心里 <span style="opacity:.5;font-weight:400">· 点开看这些天的</span></div>
+      <div class="wave"><svg viewBox="0 0 300 60" preserveAspectRatio="none"><path id="wavePath" d="M0,40 C40,20 70,50 110,32 C150,14 180,46 220,28 C255,12 285,34 300,26 L300,60 L0,60 Z" fill="rgba(232,168,62,.30)"/></svg></div>
+      <div class="metrics"><span>精力值</span><span>心情值</span><span>烦躁值</span></div>
+    </div>
+  </div>
+</div>
+<!-- 右控制 -->
+<div class="controls">
+  <h2>Lair · 家园页装修台</h2>
+  <div class="sub">v0.4 · 手机适配版 · 导出配置给我做内容</div>
+
+  <div class="sec"><div class="t">背景</div>
+    <div class="swatches" id="bgSwatches"></div>
+    <div class="row" style="margin-top:8px"><span>玻璃模糊</span><input type="range" id="blur" min="2" max="40" value="18"></div>
+  </div>
+
+  <div class="sec"><div class="t">卡片圆角</div>
+    <div class="row"><span>圆角大小</span><input type="range" id="radius" min="4" max="32" value="18"></div>
+  </div>
+
+  <div class="sec"><div class="t">字体</div>
+    <div class="row"><span>正文风格</span>
+      <select id="fontSel">
+        <option value="PingFang SC">苹方（清爽）</option>
+        <option value="Songti SC,serif">宋体（雅）</option>
+        <option value="Kaiti SC,serif">楷体（暖）</option>
+        <option value="PingFang SC" selected>苹方（清爽）</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="sec"><div class="t">文字颜色</div>
+    <div class="row"><span>深浅</span><input type="range" id="ink" min="0" max="100" value="45"></div>
+  </div>
+
+  <div class="sec"><div class="t">我们俩的头像</div>
+    <div class="row"><span>左边的我</span><input id="whoMeIn" value="我" style="width:110px;background:#1d2129;border:1px solid #333a45;border-radius:8px;padding:4px 8px;color:#e8e6e1;font-size:12px"></div>
+    <div class="row"><span>右边的机</span><input id="whoDIn" value="🐋" style="width:110px;background:#1d2129;border:1px solid #333a45;border-radius:8px;padding:4px 8px;color:#e8e6e1;font-size:12px"></div>
+    <div class="row" style="font-size:10.5px;color:#8b919c">写字 / emoji / 图片网址都行</div>
+  </div>
+
+  <div class="sec"><div class="t">心情颜文字</div>
+    <div class="row"><span>换一批预设</span><button onclick="nextMoodSet()" style="background:#1d2129;color:#e8e6e1;border:1px solid #333a45;border-radius:8px;padding:3px 12px;font-size:12px">下一组 ↻</button></div>
+    <div class="row"><span>自定义第 1~6 格</span><input id="moodCustom" placeholder="点一下想替换的格子再填" style="width:150px;background:#1d2129;border:1px solid #333a45;border-radius:8px;padding:4px 8px;color:#e8e6e1;font-size:12px"></div>
+  </div>
+
+  <div class="sec"><div class="t">卡片松紧</div>
+    <div class="row"><span>卡内留白</span><input type="range" id="pad" min="4" max="22" value="10"></div>
+  </div>
+
+  
+  <div class="sec"><div class="t">背景 · 渐变</div>
+    <div class="swatches" id="gradSwatches"></div>
+  </div>
+
+  <div class="sec"><div class="t">卡片显隐</div>
+    <label class="chk"><input type="checkbox" id="shTop" checked> 顶部联结卡</label>
+    <label class="chk"><input type="checkbox" id="shMood" checked> 今日心情</label>
+    <label class="chk"><input type="checkbox" id="shToday" checked> 今天概览</label>
+    <label class="chk"><input type="checkbox" id="shHeart" checked> 他此刻的心里</label>
+  </div>
+
+  <button class="btn" onclick="exportCfg()">导出配置 · 发给我做内容</button>
+  <textarea class="out" id="out" readonly placeholder="点导出后，这里会出现配置 JSON——全选复制发我即可"></textarea>
+</div>
+
+<script>
+/* ---------- 背景预设 ---------- */
+const BGS=[
+  {name:"暖米", c:"#f5ecdf"},
+  {name:"奶油", c:"#fdf3e3"},
+  {name:"雾蓝", c:"#dbe6f2"},
+  {name:"浅粉", c:"#f6dfe2"},
+  {name:"抹茶", c:"#e2ecd9"},
+  {name:"深蓝夜", c:"#16304e", dark:true},
+];
+const SW=document.getElementById("bgSwatches");
+let curBg=0;
+BGS.forEach((b,i)=>{
+  const d=document.createElement("div");
+  d.className="sw"+(i===0?" on":"");d.style.background=b.c;d.title=b.name;
+  d.onclick=()=>{curBg=i;document.querySelectorAll(".sw").forEach((x,j)=>x.classList.toggle("on",j===i));
+    document.getElementById("bgColor").style.background=b.c;
+    document.getElementById("bgImg").style.backgroundImage="none";
+    document.documentElement.style.setProperty("--bgc",b.c);
+    const dark=!!b.dark; document.documentElement.style.setProperty("--glassbg",dark?"rgba(20,30,48,.42)":"rgba(255,255,255,.45)");
+    document.documentElement.style.setProperty("--ink",dark?"#e6ecf4":"#33302a");
+  };
+  SW.appendChild(d);
+});
+/* ---------- 联动控制 ---------- */
+function bind(id,prop,fn){const el=document.getElementById(id);el.oninput=()=>{document.documentElement.style.setProperty(prop,el.value);fn&&fn(el.value)};}
+bind("blur","--blur");
+bind("radius","--r");
+bind("ink",null,v=>{document.documentElement.style.setProperty("--ink",`rgba(40,37,30,${v/100})`)});
+document.getElementById("fontSel").onchange=e=>{document.documentElement.style.setProperty("--font",e.target.value)};
+/* ---------- 天数/日期 ---------- */
+(function(){
+  const start=new Date("2026-08-08T00:00:00+08:00");
+  const days=Math.max(0,Math.floor((Date.now()-start.getTime())/86400000))+1;
+  document.getElementById("daysNum").textContent=days;
+  const d=new Date();document.getElementById("todayDate").textContent=(d.getMonth()+1)+"月"+d.getDate()+"日";
+})();
+/* ---------- 渐变背景 ---------- */
+const GRADS=[
+  {name:"暖晨",g:"linear-gradient(160deg,#fdf0d5,#f3d9a4)",dark:false},
+  {name:"深海",g:"linear-gradient(160deg,#123052,#0a1c33)",dark:true},
+  {name:"暮紫",g:"linear-gradient(160deg,#e8d5ec,#c9b6e4)",dark:false},
+  {name:"薄荷",g:"linear-gradient(160deg,#dff0e2,#bfe0cc)",dark:false},
+];
+const GS=document.getElementById("gradSwatches");
+let curGrad=-1;
+GRADS.forEach((b,i)=>{
+  const d=document.createElement("div");
+  d.className="sw";d.style.background=b.g;d.title=b.name;
+  d.onclick=()=>{curGrad=i;curBg=-1;document.querySelectorAll("#bgSwatches .sw").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll("#gradSwatches .sw").forEach(x=>x.classList.toggle("on",x===d));
+    document.getElementById("bgColor").style.background=b.g;document.getElementById("bgImg").style.backgroundImage="none";
+    document.documentElement.style.setProperty("--bgc",b.g);
+    const dark=b.dark;document.documentElement.style.setProperty("--glassbg",dark?"rgba(20,30,48,.42)":"rgba(255,255,255,.45)");
+    document.documentElement.style.setProperty("--ink",dark?"#e6ecf4":"#33302a");
+  };
+  GS.appendChild(d);
+});
+/* ---------- 卡片显隐 ---------- */
+const CARDMAP={shTop:"cTop",shMood:"cMood",shToday:"cToday",shHeart:"cHeart"};
+Object.keys(CARDMAP).forEach(id=>{document.getElementById(id).onchange=e=>{
+  document.getElementById(CARDMAP[id]).classList.toggle("hide",!e.target.checked);
+}});
+/* ---------- 心情颜文字格 ---------- */
+const MOOD_SETS=[
+  ["(´▽`)ﾉ","(´･_･`)","(｡•́︿•̀｡)","(￣^￣)","(￣▽￣)","(｡♥‿♥｡)"],
+  ["♡(´▽`)♡","(｡･ω･｡)","(◞‸◟)","(｀へ´)","(*´∀`)","(´,,•ω•,,)♡"],
+  ["(＾▽＾)","(・_・;)","(T_T)","(╬ Ò﹏Ó)","(^▽^)","(´｡• ᵕ •｡`)"],
+];
+const MOOD_COLORS=["#f5c66b","#f2a6a0","#a9c9e8","#b8d9a8","#d9b8e0","#e8e2d0"];
+let moodSetIdx=0, pickedMood=-1;
+function renderMoods(){
+  const box=document.getElementById("moodCircles");box.innerHTML="";
+  MOOD_SETS[moodSetIdx].forEach((em,idx)=>{
+    const c=document.createElement("i");c.textContent=em;
+    c.onclick=()=>{
+      pickedMood=(pickedMood===idx?-1:idx);
+      box.querySelectorAll("i").forEach((x,j)=>{x.style.background=j===pickedMood?MOOD_COLORS[idx]:"rgba(255,255,255,.3)";x.style.borderColor=j===pickedMood?"rgba(0,0,0,.4)":"rgba(0,0,0,.16)"});
+    };
+    box.appendChild(c);
+  });
+}
+function nextMoodSet(){moodSetIdx=(moodSetIdx+1)%MOOD_SETS.length;pickedMood=-1;renderMoods();}
+renderMoods();
+document.getElementById("moodCustom").onchange=e=>{
+  const v=e.target.value.trim();if(!v)return;
+  if(pickedMood>=0){MOOD_SETS[moodSetIdx][pickedMood]=v;e.target.value="";renderMoods();}
+  else{e.target.placeholder="先点一下想替换的格子再填";}
+};
+/* ---------- 头像设置 ---------- */
+function applyWho(id,el){const who=document.getElementById(id);
+  const v=el.value.trim();
+  who.innerHTML="";who.style.backgroundImage="none";
+  if(!v){who.textContent=id==="whoMe"?"我":"🐋";return;}
+  if(/^https?:\/\/|^data:image/.test(v)){who.style.backgroundImage="url("+v+")";who.textContent="";}
+  else{who.textContent=v;}
+}
+document.getElementById("whoMeIn").oninput=e=>applyWho("whoMe",e.target);
+document.getElementById("whoDIn").oninput=e=>applyWho("whoD",e.target);
+/* ---------- 卡片松紧 ---------- */
+function bind2(id,prop){const el=document.getElementById(id);el.oninput=()=>{document.documentElement.style.setProperty(prop,el.value)};}
+bind2("pad","--pad");
+/* ---------- 导出 ---------- */
+function exportCfg(){
+  const cfg={
+    app:"qisuo2-lair",ver:"0.4",
+    bg: curGrad>=0 ? {type:"gradient",name:GRADS[curGrad].name} : {type:"color",name:BGS[curBg].name,color:BGS[curBg].c},
+    glass:{blur:document.getElementById("blur").value,radius:document.getElementById("radius").value},
+    font:document.getElementById("fontSel").value,
+    since:"2026.8.8",
+    cards:{top:document.getElementById("shTop").checked,mood:document.getElementById("shMood").checked,today:document.getElementById("shToday").checked,heart:document.getElementById("shHeart").checked},
+    moodPicked: pickedMood,
+    moodTexts: MOOD_SETS[moodSetIdx],
+    avatars:{me:document.getElementById("whoMeIn").value.trim()||"我",d:document.getElementById("whoDIn").value.trim()||"🐋"},
+    note:"用户自调配置——D 按此做内容"
+  };
+  document.getElementById("out").value=JSON.stringify(cfg,null,2);
+}
+</script>
+</body>
+</html>
